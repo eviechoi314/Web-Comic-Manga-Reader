@@ -26,13 +26,13 @@ Modern web-based comic and manga reader for CBR, CBZ, and CBT files with a custo
 | Close reader | Click ✕, or Esc |
 | Two-page mode | Click **2P** button |
 | Right-to-left | Click **RTL** button (RTL flips the nav zones too) |
-| Bump | Click **Bump** button (only active in 2P mode) — shifts spread alignment by 1 page |
+| Cover | Click **Cover** button (only active in 2P mode) — shifts spread alignment by 1 page so a solo cover page doesn't throw off spreads |
 
 The control bar auto-hides and reappears on mouse movement.
 
-### Bump explained
+### Cover explained
 
-In two-page mode, pages are paired as (0,1), (2,3), (4,5)... If a standalone cover page throws off spread alignment, toggle **Bump** to shift pairings to (1,2), (3,4), (5,6)... — the cover then stands alone and every subsequent spread lines up correctly.
+In two-page mode, pages pair as (0,1), (2,3), (4,5)... If a standalone cover page throws off spread alignment, toggle **Cover** to shift pairings to (1,2), (3,4), (5,6)... — the cover then stands alone and every subsequent spread lines up correctly.
 
 ## Usage
 
