@@ -376,7 +376,10 @@
             </div>
 
             <div id="allComics" style="display:none;">
-                <h3>All Comics</h3>
+                <div class="section-header">
+                    <h3>All Comics</h3>
+                    <button id="selectModeBtn" class="link-btn" style="font-size:13px;">Select</button>
+                </div>
                 <div id="allComicsList"></div>
             </div>
         </div>
@@ -402,6 +405,18 @@
             </a>
         </footer>
         <div class="footer-collapsed" id="footerCollapsedText">Show library</div>
+    </div>
+
+    <!-- Bulk action bar (selection mode) -->
+    <div id="bulk-action-bar">
+        <span id="bulk-count">0 selected</span>
+        <div class="bulk-actions">
+            <button class="bulk-btn" id="bulk-1p">1P</button>
+            <button class="bulk-btn" id="bulk-2p">2P</button>
+            <button class="bulk-btn" id="bulk-ltr">LTR</button>
+            <button class="bulk-btn" id="bulk-rtl-btn">RTL</button>
+        </div>
+        <button id="bulk-cancel">Done</button>
     </div>
 
     <div id="output"></div>

@@ -178,6 +178,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnBump       = document.getElementById('reader-btn-bump');
 
     function openReader(startIndex) {
+        const s   = getComicSettings(currentComicFilename);
+        readerTwoPage = s.reading_mode === '2p';
+        readerRTL     = s.rtl;
+        readerBump    = 0;
         readerIndex = Math.max(0, Math.min(startIndex, readerPages.length - 1));
         if (readerTwoPage) snapToSpread();
         readerEl.style.display = 'flex';
@@ -191,6 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
         readerEl.style.display = 'none';
         document.body.style.overflow = '';
         saveLastPageRead(currentComicFilename, readerIndex);
+        saveComicSettings(currentComicFilename, {
+            reading_mode: readerTwoPage ? '2p' : '1p',
+            rtl: readerRTL
+        });
     }
 
     // Align readerIndex to the nearest valid spread start for the current bump.
@@ -470,6 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (readerTwoPage) snapToSpread();
         updateReaderButtons();
         renderReader();
+        saveComicSettings(currentComicFilename, { reading_mode: readerTwoPage ? '2p' : '1p' });
     });
 
     btnRTL.addEventListener('click', (e) => {
@@ -477,6 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         readerRTL = !readerRTL;
         updateReaderButtons();
         renderReader();
+        saveComicSettings(currentComicFilename, { rtl: readerRTL });
     });
 
     btnBump.addEventListener('click', (e) => {
@@ -624,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const history = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}');
             const existing = history[filename] || {};
             history[filename] = {
+                ...existing,
                 last_page: pageIndex,
                 timestamp: Date.now(),
                 thumbnail: thumbnail || existing.thumbnail || null
@@ -634,6 +645,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function saveComicSettings(filename, settings) {
+        try {
+            const history = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}');
+            history[filename] = { ...(history[filename] || {}), ...settings };
+            localStorage.setItem('comic_reader_userpref', JSON.stringify(history));
+        } catch (e) {}
+    }
+
+    function getComicSettings(filename) {
+        try {
+            const d = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}')[filename] || {};
+            return { reading_mode: d.reading_mode || '1p', rtl: d.rtl || false };
+        } catch (e) {
+            return { reading_mode: '1p', rtl: false };
+        }
+    }
+
     function getLastPageRead(filename) {
         try {
             const history = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}');
@@ -641,6 +669,37 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             return 0;
         }
+    }
+
+    function buildBadges(filename, comicData) {
+        const is2p  = comicData?.reading_mode === '2p';
+        const isRTL = comicData?.rtl === true;
+        const wrap  = document.createElement('div');
+        wrap.className = 'comic-badges';
+
+        const b2p  = document.createElement('button');
+        b2p.className   = 'comic-badge' + (is2p  ? ' active' : '');
+        b2p.textContent = '2P';
+        b2p.title       = 'Two-page mode';
+        b2p.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const next = b2p.classList.toggle('active');
+            saveComicSettings(filename, { reading_mode: next ? '2p' : '1p' });
+        });
+
+        const bRTL  = document.createElement('button');
+        bRTL.className   = 'comic-badge' + (isRTL ? ' active' : '');
+        bRTL.textContent = 'RTL';
+        bRTL.title       = 'Right-to-left reading';
+        bRTL.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const next = bRTL.classList.toggle('active');
+            saveComicSettings(filename, { rtl: next });
+        });
+
+        wrap.appendChild(b2p);
+        wrap.appendChild(bRTL);
+        return wrap;
     }
 
     // ── Library / Dropzone ────────────────────────────────────────────────────
@@ -731,20 +790,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const readingHistory = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}');
 
             for (const filename of comics) {
-                const comicData = readingHistory[filename];
-                const hasThumbnail = comicData?.thumbnail;
-                const iconContent = hasThumbnail
+                const comicData   = readingHistory[filename];
+                const iconContent = comicData?.thumbnail
                     ? `<img src="${comicData.thumbnail}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`
                     : `<svg viewBox="0 0 16 16"><path d="M3.5 2a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 12.5 2h-9zm6.854 6.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L8.793 9H5.5a.5.5 0 0 1 0-1h3.293L6.646 5.854a.5.5 0 1 1 .708-.708l3 3z"/></svg>`;
 
                 const item = document.createElement('div');
                 item.className = 'recent-comic-item';
-                item.innerHTML = `
-                    <div class="recent-comic-icon">${iconContent}</div>
-                    <div class="recent-comic-info">
-                        <div class="recent-comic-name">${filename}</div>
-                    </div>`;
-                item.addEventListener('click', () => openComicFromFolder(filename));
+                item.dataset.filename = filename;
+
+                const checkbox = document.createElement('input');
+                checkbox.type      = 'checkbox';
+                checkbox.className = 'comic-select-checkbox';
+                checkbox.addEventListener('change', () => {
+                    item.classList.toggle('selected', checkbox.checked);
+                    updateBulkCount();
+                });
+
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'recent-comic-icon';
+                iconDiv.innerHTML = iconContent;
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'recent-comic-info';
+                const nameDiv = document.createElement('div');
+                nameDiv.className   = 'recent-comic-name';
+                nameDiv.textContent = filename;
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(buildBadges(filename, comicData));
+
+                item.appendChild(checkbox);
+                item.appendChild(iconDiv);
+                item.appendChild(infoDiv);
+
+                item.addEventListener('click', (e) => {
+                    if (selectModeActive) {
+                        checkbox.checked = !checkbox.checked;
+                        item.classList.toggle('selected', checkbox.checked);
+                        updateBulkCount();
+                    } else {
+                        openComicFromFolder(filename);
+                    }
+                });
                 allComicsListEl.appendChild(item);
             }
         } catch (err) {
@@ -830,12 +917,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const iconContent = data.thumbnail
                     ? `<img src="${data.thumbnail}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`
                     : `<svg viewBox="0 0 16 16"><path d="M3.5 2a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 12.5 2h-9zm6.854 6.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L8.793 9H5.5a.5.5 0 0 1 0-1h3.293L6.646 5.854a.5.5 0 1 1 .708-.708l3 3z"/></svg>`;
-                item.innerHTML = `
-                    <div class="recent-comic-icon">${iconContent}</div>
-                    <div class="recent-comic-info">
-                        <div class="recent-comic-name">${filename}</div>
-                        <div class="recent-comic-meta">Page ${data.last_page + 1} • ${formatTimestamp(data.timestamp)}</div>
-                    </div>`;
+
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'recent-comic-icon';
+                iconDiv.innerHTML = iconContent;
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'recent-comic-info';
+                infoDiv.innerHTML = `
+                    <div class="recent-comic-name">${filename}</div>
+                    <div class="recent-comic-meta">Page ${data.last_page + 1} • ${formatTimestamp(data.timestamp)}</div>`;
+                infoDiv.appendChild(buildBadges(filename, data));
+
+                item.appendChild(iconDiv);
+                item.appendChild(infoDiv);
                 item.addEventListener('click', () => openComicFromFolder(filename));
                 recentComicsListEl.appendChild(item);
             }
@@ -864,6 +959,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (minutes > 0) return `${minutes}m ago`;
         return 'Just now';
     }
+
+    // ── Selection mode ────────────────────────────────────────────────────────
+
+    let selectModeActive = false;
+
+    function updateBulkCount() {
+        const n = allComicsListEl.querySelectorAll('.comic-select-checkbox:checked').length;
+        document.getElementById('bulk-count').textContent = `${n} selected`;
+        document.querySelectorAll('.bulk-btn').forEach(b => { b.disabled = n === 0; });
+    }
+
+    function toggleSelectMode(on) {
+        selectModeActive = on;
+        allComicsListEl.classList.toggle('select-mode', on);
+        document.getElementById('bulk-action-bar').classList.toggle('visible', on);
+        document.getElementById('selectModeBtn').classList.toggle('active', on);
+        if (!on) {
+            allComicsListEl.querySelectorAll('.comic-select-checkbox').forEach(cb => { cb.checked = false; });
+            allComicsListEl.querySelectorAll('.recent-comic-item').forEach(el => el.classList.remove('selected'));
+        }
+        updateBulkCount();
+    }
+
+    function applyBulkSettings(settings) {
+        allComicsListEl.querySelectorAll('.recent-comic-item.selected').forEach(item => {
+            const fn = item.dataset.filename;
+            saveComicSettings(fn, settings);
+            if ('reading_mode' in settings) {
+                const b = item.querySelector('.comic-badge');
+                if (b) b.classList.toggle('active', settings.reading_mode === '2p');
+            }
+            if ('rtl' in settings) {
+                const b = item.querySelectorAll('.comic-badge')[1];
+                if (b) b.classList.toggle('active', settings.rtl);
+            }
+        });
+    }
+
+    document.getElementById('selectModeBtn').addEventListener('click', () => toggleSelectMode(!selectModeActive));
+    document.getElementById('bulk-cancel').addEventListener('click', () => toggleSelectMode(false));
+    document.getElementById('bulk-1p').addEventListener('click', () => applyBulkSettings({ reading_mode: '1p' }));
+    document.getElementById('bulk-2p').addEventListener('click', () => applyBulkSettings({ reading_mode: '2p' }));
+    document.getElementById('bulk-ltr').addEventListener('click', () => applyBulkSettings({ rtl: false }));
+    document.getElementById('bulk-rtl-btn').addEventListener('click', () => applyBulkSettings({ rtl: true }));
 
     // ── IndexedDB for directory handle persistence ────────────────────────────
 
