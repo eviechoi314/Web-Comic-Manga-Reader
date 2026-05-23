@@ -345,10 +345,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = document.getElementById('lightbox-content');
         const atMax   = !ZOOM_LEVELS.some(z => z > lightboxZoomPct);
 
-        img.style.maxWidth  = 'none';
-        img.style.maxHeight = 'none';
-        img.style.width     = Math.round(img.naturalWidth * lightboxZoomPct / 100) + 'px';
-        img.style.height    = 'auto';
+        img.style.maxWidth   = 'none';
+        img.style.maxHeight  = 'none';
+        img.style.flexShrink = '0';
+        img.style.width      = Math.round(img.naturalWidth * lightboxZoomPct / 100) + 'px';
+        img.style.height     = 'auto';
         content.style.overflow = 'auto';
         content.classList.add('zoomed');
         content.classList.toggle('at-max', atMax);
