@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let readerBarTimeout = null;
 
     // Lightbox state
-    const ZOOM_LEVELS = [10, 15, 25, 33, 50, 67, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800];
+    const ZOOM_LEVELS = [10, 15, 25, 33, 50, 67, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200, 1600, 2000];
     let lightboxZoomPct = 100;   // current zoom as a percentage of natural size
     let lightboxFitPct  = 100;   // calculated fit% for this image
     let lightboxAtFit   = true;  // true = use CSS fit behaviour (nice centering)
