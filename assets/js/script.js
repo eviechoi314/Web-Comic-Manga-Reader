@@ -149,8 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let readerBarTimeout = null;
 
     // Lightbox state
-    // zoom: 'fit' | 1 | 2 | 3 | ... | 8
-    let lightboxZoom = 'fit';
+    const ZOOM_LEVELS = [10, 15, 25, 33, 50, 67, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800];
+    let lightboxZoomPct = 100;   // current zoom as a percentage of natural size
+    let lightboxFitPct  = 100;   // calculated fit% for this image
+    let lightboxAtFit   = true;  // true = use CSS fit behaviour (nice centering)
     let lightboxLabelTimeout = null;
 
     const readerEl      = document.getElementById('reader');
@@ -293,30 +295,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Lightbox ──────────────────────────────────────────────────────────────
 
     function lightboxOpen(src) {
-        const lb = document.getElementById('lightbox');
-        const img = document.getElementById('lightbox-img');
-        lightboxZoom = 'fit';
-        img.src = src;
-        img.onload = applyLightboxZoom;
+        const lb      = document.getElementById('lightbox');
+        const img     = document.getElementById('lightbox-img');
+        const content = document.getElementById('lightbox-content');
+
+        lightboxAtFit = true;
         lb.style.display = 'flex';
-        showLightboxZoomLabel();
+
+        img.onload = () => {
+            // Calculate what percentage of natural size the image is shown at when fitted
+            const scaleW = content.clientWidth  / img.naturalWidth;
+            const scaleH = content.clientHeight / img.naturalHeight;
+            lightboxFitPct  = Math.round(Math.min(scaleW, scaleH) * 100);
+            lightboxZoomPct = lightboxFitPct;
+
+            // Use CSS fit — browser handles centering perfectly
+            img.style.width     = '';
+            img.style.height    = '';
+            img.style.maxWidth  = '100%';
+            img.style.maxHeight = '100%';
+            content.style.overflow = 'hidden';
+            content.classList.remove('zoomed', 'at-max');
+            img.classList.remove('at-max');
+
+            showLightboxZoomLabel();
+        };
+        img.src = src;
     }
 
     function lightboxClose() {
-        const lb = document.getElementById('lightbox');
-        lb.style.display = 'none';
+        document.getElementById('lightbox').style.display = 'none';
         document.getElementById('lightbox-img').src = '';
-        lightboxZoom = 'fit';
+        lightboxAtFit   = true;
+        lightboxZoomPct = 100;
     }
 
     function lightboxZoomIn() {
-        // fit → 1 → 2 → 3 → ... → 8 (capped)
-        // Each step: zoom += 0.5, round to nearest integer
-        if (lightboxZoom === 'fit') {
-            lightboxZoom = 1;
-        } else if (lightboxZoom < 8) {
-            lightboxZoom = Math.round(lightboxZoom + 0.5);
-        }
+        // Snap to the next standard zoom level above current percentage
+        const next = ZOOM_LEVELS.find(z => z > lightboxZoomPct);
+        if (next === undefined) return; // already at max (800%)
+        lightboxZoomPct = next;
+        lightboxAtFit   = false;
         applyLightboxZoom();
         showLightboxZoomLabel();
     }
@@ -324,31 +343,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyLightboxZoom() {
         const img     = document.getElementById('lightbox-img');
         const content = document.getElementById('lightbox-content');
-        const atMax   = lightboxZoom === 8;
+        const atMax   = !ZOOM_LEVELS.some(z => z > lightboxZoomPct);
 
-        if (lightboxZoom === 'fit') {
-            img.style.width    = '';
-            img.style.height   = '';
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '100%';
-            content.style.overflow = 'hidden';
-            content.classList.remove('zoomed', 'at-max');
-            img.classList.remove('at-max');
-        } else {
-            img.style.maxWidth  = 'none';
-            img.style.maxHeight = 'none';
-            img.style.width     = (img.naturalWidth * lightboxZoom) + 'px';
-            img.style.height    = 'auto';
-            content.style.overflow = 'auto';
-            content.classList.add('zoomed');
-            content.classList.toggle('at-max', atMax);
-            img.classList.toggle('at-max', atMax);
-        }
+        img.style.maxWidth  = 'none';
+        img.style.maxHeight = 'none';
+        img.style.width     = Math.round(img.naturalWidth * lightboxZoomPct / 100) + 'px';
+        img.style.height    = 'auto';
+        content.style.overflow = 'auto';
+        content.classList.add('zoomed');
+        content.classList.toggle('at-max', atMax);
+        img.classList.toggle('at-max', atMax);
     }
 
     function showLightboxZoomLabel() {
         const label = document.getElementById('lightbox-zoom-label');
-        label.textContent = lightboxZoom === 'fit' ? 'Fit' : `${lightboxZoom * 100}%`;
+        label.textContent = `${lightboxZoomPct}%`;
         label.classList.add('visible');
         clearTimeout(lightboxLabelTimeout);
         lightboxLabelTimeout = setTimeout(() => label.classList.remove('visible'), 1200);
