@@ -403,7 +403,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.shiftKey) { lightboxZoomOut(); } else { lightboxZoomIn(); }
     });
 
-    document.getElementById('lightbox').addEventListener('click', () => lightboxClose());
+    // Only close on direct backdrop click, not on bar/content/button clicks
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) lightboxClose();
+    });
+    document.getElementById('lightbox-bar').addEventListener('click', (e) => e.stopPropagation());
 
     // Slider
     document.getElementById('lb-slider').addEventListener('input', (e) => {
