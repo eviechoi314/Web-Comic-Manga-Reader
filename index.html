@@ -53,21 +53,24 @@
             display: block;
         }
 
-        /* Click zones — full height, half width each */
+        /* Click zones — visual only, clicks pass through to reader-pages */
         .reader-zone {
             position: absolute;
             top: 0;
             bottom: 52px;
             width: 50%;
             z-index: 1;
-            cursor: pointer;
+            pointer-events: none;
         }
 
         #reader-zone-left  { left: 0; }
         #reader-zone-right { right: 0; }
 
-        /* Hover arrows */
-        .reader-zone::after {
+        /* Nav hint arrows via reader-pages pseudo-elements */
+        #reader-pages { position: relative; cursor: pointer; }
+
+        #reader-pages::before,
+        #reader-pages::after {
             content: '';
             position: absolute;
             top: 50%;
@@ -78,19 +81,27 @@
             border-radius: 50%;
             opacity: 0;
             transition: opacity 0.15s;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'%3E%3C/polyline%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: center;
             background-size: 20px;
+            pointer-events: none;
+            z-index: 2;
         }
 
-        #reader-zone-left::after  { left: 16px; }
-        #reader-zone-right::after {
+        #reader-pages::before {
+            left: 16px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        #reader-pages::after {
             right: 16px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E");
         }
 
-        .reader-zone:hover::after { opacity: 1; }
+        #reader-pages.hint-left::before  { opacity: 1; }
+        #reader-pages.hint-right::after  { opacity: 1; }
+
+        .reader-page img { cursor: zoom-in; }
 
         /* Control bar */
         #reader-bar {
@@ -177,6 +188,89 @@
             background: rgba(255,255,255,0.15);
             color: #fff;
         }
+
+        /* ── Lightbox ── */
+        #lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            background: rgba(0,0,0,0.92);
+            align-items: center;
+            justify-content: center;
+        }
+
+        #lightbox-content {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #lightbox-content.zoomed {
+            align-items: flex-start;
+            justify-content: flex-start;
+            cursor: zoom-in;
+        }
+
+        #lightbox-content.at-max {
+            cursor: default;
+        }
+
+        #lightbox-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            cursor: zoom-in;
+            user-select: none;
+        }
+
+        #lightbox-img.at-max { cursor: default; }
+
+        #lightbox-close-btn {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 18px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            transition: background 0.15s;
+            line-height: 1;
+        }
+        #lightbox-close-btn:hover { background: rgba(255,255,255,0.15); }
+
+        #lightbox-zoom-label {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: system-ui, -apple-system, sans-serif;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s;
+            z-index: 2;
+            white-space: nowrap;
+        }
+        #lightbox-zoom-label.visible { opacity: 1; }
     </style>
 </head>
 <body>
@@ -288,6 +382,15 @@
                 <button id="reader-btn-bump"  title="Bump page alignment (shift spread by 1)">Bump</button>
             </div>
         </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox">
+        <div id="lightbox-content">
+            <img id="lightbox-img" draggable="false">
+        </div>
+        <button id="lightbox-close-btn" title="Close (Esc)">✕</button>
+        <div id="lightbox-zoom-label">Fit</div>
     </div>
 
     <script src="./assets/js/uncompress/uncompress.js"></script>

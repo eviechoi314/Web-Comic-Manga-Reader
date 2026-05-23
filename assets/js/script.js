@@ -148,6 +148,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let readerBump    = 0;      // 0 or 1 — shifts spread alignment by one page
     let readerBarTimeout = null;
 
+    // Lightbox state
+    // zoom: 'fit' | 1 | 2 | 3 | ... | 8
+    let lightboxZoom = 'fit';
+    let lightboxLabelTimeout = null;
+
     const readerEl      = document.getElementById('reader');
     const pageA         = document.getElementById('reader-page-a');
     const pageB         = document.getElementById('reader-page-b');
@@ -248,12 +253,34 @@ document.addEventListener('DOMContentLoaded', () => {
         readerBarTimeout = setTimeout(() => readerBar.classList.remove('visible'), 3000);
     }
 
-    // Navigation zones
-    document.getElementById('reader-zone-left').addEventListener('click', () => {
-        if (readerRTL) readerAdvance(); else readerBack();
+    // Navigation + lightbox via reader-pages click
+    // Zones are pointer-events:none, so all clicks land here.
+    // Click on image → lightbox. Click on blank area → navigate.
+    const readerPagesEl = document.getElementById('reader-pages');
+
+    readerPagesEl.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') {
+            lightboxOpen(e.target.src);
+            return;
+        }
+        const rect = readerPagesEl.getBoundingClientRect();
+        const clickedLeft = e.clientX < rect.left + rect.width / 2;
+        if (clickedLeft) {
+            if (readerRTL) readerAdvance(); else readerBack();
+        } else {
+            if (readerRTL) readerBack(); else readerAdvance();
+        }
     });
-    document.getElementById('reader-zone-right').addEventListener('click', () => {
-        if (readerRTL) readerBack(); else readerAdvance();
+
+    // Hover hint arrows
+    readerPagesEl.addEventListener('mousemove', (e) => {
+        const rect = readerPagesEl.getBoundingClientRect();
+        const isLeft = e.clientX < rect.left + rect.width / 2;
+        readerPagesEl.classList.toggle('hint-left', isLeft);
+        readerPagesEl.classList.toggle('hint-right', !isLeft);
+    });
+    readerPagesEl.addEventListener('mouseleave', () => {
+        readerPagesEl.classList.remove('hint-left', 'hint-right');
     });
 
     // Show bar on mouse/touch activity
@@ -262,6 +289,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Close button
     document.getElementById('reader-close').addEventListener('click', closeReader);
+
+    // ── Lightbox ──────────────────────────────────────────────────────────────
+
+    function lightboxOpen(src) {
+        const lb = document.getElementById('lightbox');
+        const img = document.getElementById('lightbox-img');
+        lightboxZoom = 'fit';
+        img.src = src;
+        img.onload = applyLightboxZoom;
+        lb.style.display = 'flex';
+        showLightboxZoomLabel();
+    }
+
+    function lightboxClose() {
+        const lb = document.getElementById('lightbox');
+        lb.style.display = 'none';
+        document.getElementById('lightbox-img').src = '';
+        lightboxZoom = 'fit';
+    }
+
+    function lightboxZoomIn() {
+        // fit → 1 → 2 → 3 → ... → 8 (capped)
+        // Each step: zoom += 0.5, round to nearest integer
+        if (lightboxZoom === 'fit') {
+            lightboxZoom = 1;
+        } else if (lightboxZoom < 8) {
+            lightboxZoom = Math.round(lightboxZoom + 0.5);
+        }
+        applyLightboxZoom();
+        showLightboxZoomLabel();
+    }
+
+    function applyLightboxZoom() {
+        const img     = document.getElementById('lightbox-img');
+        const content = document.getElementById('lightbox-content');
+        const atMax   = lightboxZoom === 8;
+
+        if (lightboxZoom === 'fit') {
+            img.style.width    = '';
+            img.style.height   = '';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '100%';
+            content.style.overflow = 'hidden';
+            content.classList.remove('zoomed', 'at-max');
+            img.classList.remove('at-max');
+        } else {
+            img.style.maxWidth  = 'none';
+            img.style.maxHeight = 'none';
+            img.style.width     = (img.naturalWidth * lightboxZoom) + 'px';
+            img.style.height    = 'auto';
+            content.style.overflow = 'auto';
+            content.classList.add('zoomed');
+            content.classList.toggle('at-max', atMax);
+            img.classList.toggle('at-max', atMax);
+        }
+    }
+
+    function showLightboxZoomLabel() {
+        const label = document.getElementById('lightbox-zoom-label');
+        label.textContent = lightboxZoom === 'fit' ? 'Fit' : `${lightboxZoom * 100}%`;
+        label.classList.add('visible');
+        clearTimeout(lightboxLabelTimeout);
+        lightboxLabelTimeout = setTimeout(() => label.classList.remove('visible'), 1200);
+    }
+
+    // Lightbox events
+    document.getElementById('lightbox-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        lightboxClose();
+    });
+
+    document.getElementById('lightbox-content').addEventListener('click', (e) => {
+        e.stopPropagation();
+        lightboxZoomIn();
+    });
+
+    document.getElementById('lightbox').addEventListener('click', () => lightboxClose());
 
     // Mode buttons (stopPropagation so clicks don't hit the nav zones)
     btn2page.addEventListener('click', (e) => {
@@ -290,7 +394,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
+        const lbOpen = document.getElementById('lightbox').style.display === 'flex';
+
+        if (lbOpen) {
+            if (e.key === 'Escape') lightboxClose();
+            return;
+        }
+
         if (readerEl.style.display === 'none' || readerEl.style.display === '') return;
+
         switch (e.key) {
             case 'ArrowRight':
                 e.preventDefault();
