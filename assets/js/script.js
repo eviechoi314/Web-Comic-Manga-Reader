@@ -201,21 +201,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Align readerIndex to the nearest valid spread start for the current bump.
-    // Valid starts: bump, bump+2, bump+4, ...
+    // Valid spread starts with bump=0: 0, 2, 4, ...
+    // Valid spread starts with bump=1: 0 (solo cover), 1, 3, 5, ...
+    // Index 0 is always valid.
     function snapToSpread() {
         if (readerPages.length === 0) return;
-        const offset = readerIndex - readerBump;
-        if (offset < 0) {
-            readerIndex = readerBump;
+        if (readerIndex === 0) return;
+        if (readerIndex < readerBump) {
+            readerIndex = 0;
         } else {
-            readerIndex = readerBump + Math.floor(offset / 2) * 2;
+            readerIndex = readerBump + Math.floor((readerIndex - readerBump) / 2) * 2;
         }
         readerIndex = Math.max(0, Math.min(readerIndex, readerPages.length - 1));
     }
 
     function readerAdvance() {
-        const step = readerTwoPage ? 2 : 1;
+        // From solo cover (index 0, bump=1): step 1 to reach first spread at bump
+        const step = (readerTwoPage && readerIndex === 0 && readerBump === 1) ? 1
+                   : readerTwoPage ? 2 : 1;
         readerIndex = Math.min(readerIndex + step, readerPages.length - 1);
         saveLastPageRead(currentComicFilename, readerIndex);
         renderReader();
@@ -223,8 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function readerBack() {
         const step = readerTwoPage ? 2 : 1;
-        const min  = readerTwoPage ? readerBump : 0;
-        readerIndex = Math.max(readerIndex - step, min);
+        readerIndex = Math.max(readerIndex - step, 0);
         saveLastPageRead(currentComicFilename, readerIndex);
         renderReader();
     }
@@ -232,27 +234,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderReader() {
         if (readerTwoPage) {
             readerEl.classList.add('two-page');
-            const i1 = readerIndex;
-            const i2 = readerIndex + 1;
+            const i1     = readerIndex;
+            const isSolo = readerIndex === 0 && readerBump === 1;
+            const i2     = isSolo ? -1 : readerIndex + 1;
 
             const src1 = readerPages[i1] ? `<img src="${readerPages[i1]}" draggable="false">` : '';
-            const src2 = (i2 < readerPages.length && readerPages[i2])
+            const src2 = (i2 >= 0 && i2 < readerPages.length && readerPages[i2])
                 ? `<img src="${readerPages[i2]}" draggable="false">` : '';
 
             if (readerRTL) {
-                // RTL: right panel = lower page number, left panel = higher
                 pageA.innerHTML = src2;
                 pageB.innerHTML = src1;
             } else {
                 pageA.innerHTML = src1;
                 pageB.innerHTML = src2;
             }
-            pageB.style.display = 'flex';
+            pageB.style.display = isSolo ? 'none' : 'flex';
 
             const p1 = i1 + 1;
-            const p2 = Math.min(i2 + 1, readerPages.length);
-            pageNumEl.textContent = i2 < readerPages.length
-                ? `${p1}–${p2} / ${readerPages.length}`
+            pageNumEl.textContent = (i2 >= 0 && i2 < readerPages.length)
+                ? `${p1}–${i2 + 1} / ${readerPages.length}`
                 : `${p1} / ${readerPages.length}`;
         } else {
             readerEl.classList.remove('two-page');
