@@ -1,9 +1,9 @@
 # Feature Roadmap
 
-## 0 — Quick wins (done / in progress)
-- [x] zoom center fix (don't slam to top-left on first zoom)
-- [x] cover page always solo in 2P (default bump=1, rename button to "Cover")
-- [x] zoom bar auto-hides when not hovering
+## 0 — Quick wins ✓
+- [x] zoom center fix (centers image on first zoom from fit, preserves scroll position after)
+- [x] cover page always solo in 2P (default bump=1, button renamed to "Cover")
+- [x] zoom bar auto-hides when not hovering (shows on mousemove, stays on bar hover)
 
 ## 1 — High value next
 - [ ] continuous scroll mode

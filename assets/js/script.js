@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const s   = getComicSettings(currentComicFilename);
         readerTwoPage = s.reading_mode === '2p';
         readerRTL     = s.rtl;
-        readerBump    = 0;
+        readerBump    = readerTwoPage ? 1 : 0;  // cover always solo by default in 2P
         readerIndex = Math.max(0, Math.min(startIndex, readerPages.length - 1));
         if (readerTwoPage) snapToSpread();
         readerEl.style.display = 'flex';
@@ -322,6 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lightboxAtFit = true;
         lb.style.display = 'flex';
+        showLightboxBar();
 
         img.onload = () => {
             // Calculate what percentage of natural size the image is shown at when fitted
@@ -352,19 +353,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function lightboxZoomIn() {
+        const center = lightboxAtFit;
         const next = ZOOM_LEVELS.find(z => z > lightboxZoomPct);
         if (next === undefined) return;
         lightboxZoomPct = next;
         lightboxAtFit   = false;
-        applyLightboxZoom();
+        applyLightboxZoom(center);
     }
 
     function lightboxZoomOut() {
+        const center = lightboxAtFit;
         const prev = [...ZOOM_LEVELS].reverse().find(z => z < lightboxZoomPct);
         if (prev === undefined) return;
         lightboxZoomPct = prev;
         lightboxAtFit   = false;
-        applyLightboxZoom();
+        applyLightboxZoom(center);
     }
 
     function lightboxZoomToFit() {
@@ -383,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateLightboxUI();
     }
 
-    function applyLightboxZoom() {
+    function applyLightboxZoom(centerView = false) {
         const img     = document.getElementById('lightbox-img');
         const content = document.getElementById('lightbox-content');
         const atMax   = !ZOOM_LEVELS.some(z => z > lightboxZoomPct);
@@ -398,6 +401,13 @@ document.addEventListener('DOMContentLoaded', () => {
         content.classList.toggle('at-max', atMax);
         img.classList.toggle('at-max', atMax);
         updateLightboxUI();
+
+        if (centerView) {
+            requestAnimationFrame(() => {
+                content.scrollLeft = (content.scrollWidth - content.clientWidth) / 2;
+                content.scrollTop  = (content.scrollHeight - content.clientHeight) / 2;
+            });
+        }
     }
 
     // Lightbox events
@@ -417,11 +427,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('lightbox-bar').addEventListener('click', (e) => e.stopPropagation());
 
+    // Zoom bar hover show/hide
+    let lbBarTimeout = null;
+    const lbBar = document.getElementById('lightbox-bar');
+
+    function showLightboxBar() {
+        lbBar.classList.add('visible');
+        clearTimeout(lbBarTimeout);
+        lbBarTimeout = setTimeout(() => lbBar.classList.remove('visible'), 2000);
+    }
+
+    document.getElementById('lightbox').addEventListener('mousemove', showLightboxBar);
+    lbBar.addEventListener('mouseenter', () => clearTimeout(lbBarTimeout));
+    lbBar.addEventListener('mouseleave', () => {
+        lbBarTimeout = setTimeout(() => lbBar.classList.remove('visible'), 600);
+    });
+
     // Slider
     document.getElementById('lb-slider').addEventListener('input', (e) => {
+        const center = lightboxAtFit;
         lightboxZoomPct = sliderToZoom(parseInt(e.target.value));
         lightboxAtFit   = false;
-        applyLightboxZoom();
+        applyLightboxZoom(center);
     });
 
     // Preset buttons
@@ -431,9 +458,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('lb-btn-100').addEventListener('click', (e) => {
         e.stopPropagation();
+        const center    = lightboxAtFit;
         lightboxZoomPct = 100;
         lightboxAtFit   = false;
-        applyLightboxZoom();
+        applyLightboxZoom(center);
     });
 
     // Shift key: swap cursor to zoom-out while held
@@ -475,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn2page.addEventListener('click', (e) => {
         e.stopPropagation();
         readerTwoPage = !readerTwoPage;
+        readerBump    = readerTwoPage ? 1 : 0;
         if (readerTwoPage) snapToSpread();
         updateReaderButtons();
         renderReader();

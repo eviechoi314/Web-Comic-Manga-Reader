@@ -265,6 +265,14 @@
             z-index: 3;
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        #lightbox-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         #lightbox-bar button {
@@ -435,7 +443,7 @@
             <div id="reader-bar-right">
                 <button id="reader-btn-2page" title="Two-page mode">2P</button>
                 <button id="reader-btn-rtl"   title="Right-to-left">RTL</button>
-                <button id="reader-btn-bump"  title="Bump page alignment (shift spread by 1)">Bump</button>
+                <button id="reader-btn-bump"  title="Solo cover page (first page shown alone)">Cover</button>
             </div>
         </div>
     </div>
