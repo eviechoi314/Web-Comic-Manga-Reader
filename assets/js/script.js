@@ -150,10 +150,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lightbox state
     const ZOOM_LEVELS = [10, 15, 25, 33, 50, 67, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200, 1600, 2000];
-    let lightboxZoomPct = 100;   // current zoom as a percentage of natural size
-    let lightboxFitPct  = 100;   // calculated fit% for this image
-    let lightboxAtFit   = true;  // true = use CSS fit behaviour (nice centering)
-    let lightboxLabelTimeout = null;
+    let lightboxZoomPct = 100;
+    let lightboxFitPct  = 100;
+    let lightboxAtFit   = true;
+
+    // Slider uses a log scale: val 0–100 maps to zoom 10%–2000%
+    function zoomToSlider(pct) {
+        return Math.round(Math.log(pct / 10) / Math.log(200) * 100);
+    }
+    function sliderToZoom(val) {
+        return Math.max(10, Math.min(2000, Math.round(10 * Math.pow(200, val / 100))));
+    }
+    function updateLightboxUI() {
+        const pct = lightboxAtFit ? lightboxFitPct : lightboxZoomPct;
+        document.getElementById('lb-zoom-label').textContent = `${pct}%`;
+        document.getElementById('lb-slider').value = zoomToSlider(pct);
+        document.getElementById('lb-btn-fit').classList.toggle('active', lightboxAtFit);
+    }
 
     const readerEl      = document.getElementById('reader');
     const pageA         = document.getElementById('reader-page-a');
@@ -318,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             content.classList.remove('zoomed', 'at-max');
             img.classList.remove('at-max');
 
-            showLightboxZoomLabel();
+            updateLightboxUI();
         };
         img.src = src;
     }
@@ -331,13 +344,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function lightboxZoomIn() {
-        // Snap to the next standard zoom level above current percentage
         const next = ZOOM_LEVELS.find(z => z > lightboxZoomPct);
-        if (next === undefined) return; // already at max (800%)
+        if (next === undefined) return;
         lightboxZoomPct = next;
         lightboxAtFit   = false;
         applyLightboxZoom();
-        showLightboxZoomLabel();
+    }
+
+    function lightboxZoomOut() {
+        const prev = [...ZOOM_LEVELS].reverse().find(z => z < lightboxZoomPct);
+        if (prev === undefined) return;
+        lightboxZoomPct = prev;
+        lightboxAtFit   = false;
+        applyLightboxZoom();
+    }
+
+    function lightboxZoomToFit() {
+        const img     = document.getElementById('lightbox-img');
+        const content = document.getElementById('lightbox-content');
+        lightboxAtFit   = true;
+        lightboxZoomPct = lightboxFitPct;
+        img.style.width      = '';
+        img.style.height     = '';
+        img.style.maxWidth   = '100%';
+        img.style.maxHeight  = '100%';
+        img.style.flexShrink = '';
+        content.style.overflow = 'hidden';
+        content.classList.remove('zoomed', 'at-max');
+        img.classList.remove('at-max');
+        updateLightboxUI();
     }
 
     function applyLightboxZoom() {
@@ -354,14 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
         content.classList.add('zoomed');
         content.classList.toggle('at-max', atMax);
         img.classList.toggle('at-max', atMax);
-    }
-
-    function showLightboxZoomLabel() {
-        const label = document.getElementById('lightbox-zoom-label');
-        label.textContent = `${lightboxZoomPct}%`;
-        label.classList.add('visible');
-        clearTimeout(lightboxLabelTimeout);
-        lightboxLabelTimeout = setTimeout(() => label.classList.remove('visible'), 1200);
+        updateLightboxUI();
     }
 
     // Lightbox events
@@ -372,10 +400,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('lightbox-content').addEventListener('click', (e) => {
         e.stopPropagation();
-        lightboxZoomIn();
+        if (e.shiftKey) { lightboxZoomOut(); } else { lightboxZoomIn(); }
     });
 
     document.getElementById('lightbox').addEventListener('click', () => lightboxClose());
+
+    // Slider
+    document.getElementById('lb-slider').addEventListener('input', (e) => {
+        lightboxZoomPct = sliderToZoom(parseInt(e.target.value));
+        lightboxAtFit   = false;
+        applyLightboxZoom();
+    });
+
+    // Preset buttons
+    document.getElementById('lb-btn-fit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        lightboxZoomToFit();
+    });
+    document.getElementById('lb-btn-100').addEventListener('click', (e) => {
+        e.stopPropagation();
+        lightboxZoomPct = 100;
+        lightboxAtFit   = false;
+        applyLightboxZoom();
+    });
+
+    // Shift key: swap cursor to zoom-out while held
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift' && document.getElementById('lightbox').style.display === 'flex') {
+            document.getElementById('lightbox-img').classList.add('shift-held');
+        }
+    });
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') document.getElementById('lightbox-img').classList.remove('shift-held');
+    });
+
+    // Pinch zoom
+    const lbContent = document.getElementById('lightbox-content');
+    let pinchStartDist = 0;
+    let pinchStartZoom = 100;
+
+    lbContent.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartZoom = lightboxZoomPct;
+    }, { passive: false });
+
+    lbContent.addEventListener('touchmove', (e) => {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+        const dx   = e.touches[0].clientX - e.touches[1].clientX;
+        const dy   = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        lightboxZoomPct = Math.max(10, Math.min(2000, Math.round(pinchStartZoom * dist / pinchStartDist)));
+        lightboxAtFit   = false;
+        applyLightboxZoom();
+    }, { passive: false });
 
     // Mode buttons (stopPropagation so clicks don't hit the nav zones)
     btn2page.addEventListener('click', (e) => {
