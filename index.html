@@ -5,8 +5,179 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web Comic Reader</title>
     <link href="./assets/css/styles.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/lightgallery.js@1.4.0/dist/css/lightgallery.min.css" rel="stylesheet">
     <link href="https://unpkg.com/dropzone/dist/dropzone.css" rel="stylesheet" />
+    <style>
+        /* ── Custom manga reader overlay ── */
+        #reader {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 10000;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        #reader-pages {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+            min-height: 0;
+        }
+
+        .reader-page {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            overflow: hidden;
+            flex: 1;
+            max-width: 50%;
+        }
+
+        #reader:not(.two-page) .reader-page {
+            max-width: 100%;
+        }
+
+        #reader:not(.two-page) #reader-page-b {
+            display: none;
+        }
+
+        .reader-page img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Click zones — full height, half width each */
+        .reader-zone {
+            position: absolute;
+            top: 0;
+            bottom: 52px;
+            width: 50%;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        #reader-zone-left  { left: 0; }
+        #reader-zone-right { right: 0; }
+
+        /* Hover arrows */
+        .reader-zone::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            background: rgba(255,255,255,0.12);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.15s;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 20px;
+        }
+
+        #reader-zone-left::after  { left: 16px; }
+        #reader-zone-right::after {
+            right: 16px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        .reader-zone:hover::after { opacity: 1; }
+
+        /* Control bar */
+        #reader-bar {
+            height: 52px;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 10px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+            position: relative;
+            z-index: 2;
+        }
+
+        #reader-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #reader-close {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 6px 8px;
+            border-radius: 6px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: opacity 0.15s, background 0.15s;
+        }
+        #reader-close:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+
+        #reader-page-num {
+            color: #aaa;
+            font-size: 13px;
+            font-family: system-ui, -apple-system, sans-serif;
+            white-space: nowrap;
+        }
+
+        #reader-bar-right {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+        }
+
+        #reader-bar-right button {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #aaa;
+            border-radius: 6px;
+            padding: 4px 11px;
+            font-size: 12px;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            letter-spacing: 0.3px;
+        }
+
+        #reader-bar-right button:hover {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+
+        #reader-bar-right button.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+
+        #reader-btn-bump {
+            opacity: 0.35;
+            cursor: default;
+        }
+        #reader-btn-bump.enabled {
+            opacity: 1;
+            cursor: pointer;
+        }
+        #reader-btn-bump.enabled:hover {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
     <div class="se-pre-con">
@@ -100,13 +271,26 @@
 
     <div id="output"></div>
 
+    <!-- Custom manga reader -->
+    <div id="reader">
+        <div id="reader-pages">
+            <div id="reader-page-a" class="reader-page"></div>
+            <div id="reader-page-b" class="reader-page"></div>
+        </div>
+        <div id="reader-zone-left"  class="reader-zone" aria-label="Previous page"></div>
+        <div id="reader-zone-right" class="reader-zone" aria-label="Next page"></div>
+        <div id="reader-bar">
+            <button id="reader-close" title="Close (Esc)">✕</button>
+            <span id="reader-page-num">1 / 1</span>
+            <div id="reader-bar-right">
+                <button id="reader-btn-2page" title="Two-page mode">2P</button>
+                <button id="reader-btn-rtl"   title="Right-to-left">RTL</button>
+                <button id="reader-btn-bump"  title="Bump page alignment (shift spread by 1)">Bump</button>
+            </div>
+        </div>
+    </div>
+
     <script src="./assets/js/uncompress/uncompress.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lightgallery.js@1.4.0/dist/js/lightgallery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lg-fullscreen.js@1.2.0/dist/lg-fullscreen.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lg-zoom.js@1.3.0/dist/lg-zoom.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lg-thumbnail.js@1.2.0/dist/lg-thumbnail.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lg-autoplay.js@1.2.0/dist/lg-autoplay.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lg-rotate.js@1.2.0/dist/lg-rotate.min.js"></script>
     <script src="https://unpkg.com/dropzone/dist/dropzone-min.js"></script>
     <script src="./assets/js/script.js"></script>
 </body>
