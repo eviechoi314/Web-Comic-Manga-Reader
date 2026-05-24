@@ -38,7 +38,8 @@
             max-width: 50%;
         }
 
-        #reader:not(.two-page) .reader-page {
+        #reader:not(.two-page) .reader-page,
+        #reader.solo-cover .reader-page {
             max-width: 100%;
         }
 
@@ -53,14 +54,15 @@
             display: block;
         }
 
-        /* Click zones — visual only, clicks pass through to reader-pages */
+        /* Click zones — edge nav strips, intercept clicks for prev/next */
         .reader-zone {
             position: absolute;
             top: 0;
             bottom: 52px;
-            width: 50%;
-            z-index: 1;
-            pointer-events: none;
+            width: 20%;
+            z-index: 2;
+            pointer-events: auto;
+            cursor: pointer;
         }
 
         #reader-zone-left  { left: 0; }

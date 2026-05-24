@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const s   = getComicSettings(currentComicFilename);
         readerTwoPage = s.reading_mode === '2p';
         readerRTL     = s.rtl;
-        readerBump    = 0;
+        readerBump    = s.cover ? 1 : 0;
         readerIndex = Math.max(0, Math.min(startIndex, readerPages.length - 1));
         if (readerTwoPage) snapToSpread();
         readerEl.style.display = 'flex';
@@ -197,7 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
         saveLastPageRead(currentComicFilename, readerIndex);
         saveComicSettings(currentComicFilename, {
             reading_mode: readerTwoPage ? '2p' : '1p',
-            rtl: readerRTL
+            rtl: readerRTL,
+            cover: readerBump === 1
         });
     }
 
@@ -243,7 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const src2 = (i2 >= 0 && i2 < readerPages.length && readerPages[i2])
                 ? `<img src="${readerPages[i2]}" draggable="false">` : '';
 
-            if (readerRTL) {
+            if (isSolo) {
+                pageA.innerHTML = src1;
+                pageB.innerHTML = '';
+            } else if (readerRTL) {
                 pageA.innerHTML = src2;
                 pageB.innerHTML = src1;
             } else {
@@ -251,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageB.innerHTML = src2;
             }
             pageB.style.display = isSolo ? 'none' : 'flex';
+            readerEl.classList.toggle('solo-cover', isSolo);
 
             const p1 = i1 + 1;
             pageNumEl.textContent = (i2 >= 0 && i2 < readerPages.length)
@@ -258,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : `${p1} / ${readerPages.length}`;
         } else {
             readerEl.classList.remove('two-page');
+            readerEl.classList.remove('solo-cover');
             pageA.innerHTML = `<img src="${readerPages[readerIndex]}" draggable="false">`;
             pageB.innerHTML = '';
             pageB.style.display = 'none';
@@ -278,35 +284,23 @@ document.addEventListener('DOMContentLoaded', () => {
         readerBarTimeout = setTimeout(() => readerBar.classList.remove('visible'), 3000);
     }
 
-    // Navigation + lightbox via reader-pages click
-    // Zones are pointer-events:none, so all clicks land here.
-    // Click on image → lightbox. Click on blank area → navigate.
-    const readerPagesEl = document.getElementById('reader-pages');
+    // Navigation via edge zones; lightbox via center image click
+    const readerPagesEl    = document.getElementById('reader-pages');
+    const zoneLeft         = document.getElementById('reader-zone-left');
+    const zoneRight        = document.getElementById('reader-zone-right');
+
+    zoneLeft.addEventListener('click',  () => { if (readerRTL) readerAdvance(); else readerBack(); });
+    zoneRight.addEventListener('click', () => { if (readerRTL) readerBack();    else readerAdvance(); });
 
     readerPagesEl.addEventListener('click', (e) => {
-        if (e.target.tagName === 'IMG') {
-            lightboxOpen(e.target.src);
-            return;
-        }
-        const rect = readerPagesEl.getBoundingClientRect();
-        const clickedLeft = e.clientX < rect.left + rect.width / 2;
-        if (clickedLeft) {
-            if (readerRTL) readerAdvance(); else readerBack();
-        } else {
-            if (readerRTL) readerBack(); else readerAdvance();
-        }
+        if (e.target.tagName === 'IMG') lightboxOpen(e.target.src);
     });
 
-    // Hover hint arrows
-    readerPagesEl.addEventListener('mousemove', (e) => {
-        const rect = readerPagesEl.getBoundingClientRect();
-        const isLeft = e.clientX < rect.left + rect.width / 2;
-        readerPagesEl.classList.toggle('hint-left', isLeft);
-        readerPagesEl.classList.toggle('hint-right', !isLeft);
-    });
-    readerPagesEl.addEventListener('mouseleave', () => {
-        readerPagesEl.classList.remove('hint-left', 'hint-right');
-    });
+    // Hover hint arrows — show on zone hover, hide on reader leave
+    zoneLeft.addEventListener('mouseenter',  () => readerPagesEl.classList.add('hint-left'));
+    zoneLeft.addEventListener('mouseleave',  () => readerPagesEl.classList.remove('hint-left'));
+    zoneRight.addEventListener('mouseenter', () => readerPagesEl.classList.add('hint-right'));
+    zoneRight.addEventListener('mouseleave', () => readerPagesEl.classList.remove('hint-right'));
 
     // Show bar on mouse/touch activity
     readerEl.addEventListener('mousemove', showReaderBar);
@@ -527,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         snapToSpread();
         updateReaderButtons();
         renderReader();
+        saveComicSettings(currentComicFilename, { cover: readerBump === 1 });
     });
 
     // Keyboard navigation
@@ -687,9 +682,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function getComicSettings(filename) {
         try {
             const d = JSON.parse(localStorage.getItem('comic_reader_userpref') || '{}')[filename] || {};
-            return { reading_mode: d.reading_mode || '1p', rtl: d.rtl || false };
+            return {
+                reading_mode: d.reading_mode || '1p',
+                rtl: d.rtl || false,
+                cover: d.cover !== undefined ? d.cover : true
+            };
         } catch (e) {
-            return { reading_mode: '1p', rtl: false };
+            return { reading_mode: '1p', rtl: false, cover: true };
         }
     }
 
